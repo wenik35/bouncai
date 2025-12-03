@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+requirements = ["Click>=7.0", "pygame", "gymnasium>=0.26.0", "numpy"]#!/usr/bin/env python
 
 """The setup script."""
 

@@ -1,0 +1,338 @@
+"""Gymnasium environment for BouncAI game."""
+
+import gymnasium as gym
+import numpy as np
+from gymnasium import spaces
+import pygame
+import random
+
+from bouncai.world.world import World
+from bouncai.world.config import config, initialize_fonts
+from bouncai.world.player import Player
+from bouncai.world.platform import Platform
+from bouncai.world.spritesheet import SpriteSheet
+from bouncai.world.enemy import Enemy
+from bouncai.controller import Actions
+import os
+from pygame import mixer
+
+
+class BouncAIEnv(gym.Env):
+    """Custom Gymnasium environment for BouncAI game."""
+    
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
+    
+    def __init__(self, render_mode=None, asset_path="assets"):
+        super().__init__()
+        
+        self.render_mode = render_mode
+        self.asset_path = asset_path
+        
+        # Initialize pygame if not already done
+        if not pygame.get_init():
+            print("[DEBUG] Initializing pygame...")
+            mixer.init()
+            pygame.init()
+        
+        # Initialize fonts after pygame is initialized
+        initialize_fonts()
+        
+        # Screen setup
+        self.screen_width = config["SCREEN_WIDTH"]
+        self.screen_height = config["SCREEN_HEIGHT"]
+        self.screen = None
+        self.clock = None
+        
+        # Don't create screen yet if render_mode is human - wait until first render call
+        # This prevents "no video mode has been set" errors
+        
+        # Initialize asset variables
+        self.player_image = None
+        self.background_image = None
+        self.platform_image = None
+        self.wind_image = None
+        self.bird_sheet = None
+        self.jump_fx = None
+        self.death_fx = None
+        
+        # Load assets
+        self._load_assets()
+        
+        # Action space: LEFT, RIGHT, or NO_ACTION
+        self.action_space = spaces.Discrete(3)  # 0: LEFT, 1: RIGHT, 2: NO_ACTION
+        
+        # Observation space: [player_x, player_y, player_vel_y, 
+        #                     nearest_platform_x, nearest_platform_y, 
+        #                     nearest_platform_width, nearest_enemy_x, nearest_enemy_y,
+        #                     nearest_wind_x, nearest_wind_y, score]
+        self.observation_space = spaces.Box(
+            low=-np.inf, 
+            high=np.inf, 
+            shape=(11,), 
+            dtype=np.float32
+        )
+        
+        self.world = None
+        self.player = None
+        self.high_score = 0
+        self.steps = 0
+        self.max_steps = 20000
+        
+        self._reset_game()
+    
+    def _load_assets(self):
+        """Load game assets."""
+        try:
+            print(f"Loading assets from: {self.asset_path}")
+            
+            # Load images without convert_alpha initially
+            player_img = pygame.image.load(f'{self.asset_path}/jump.png')
+            if pygame.display.get_surface() is not None:
+                player_img = player_img.convert_alpha()
+            self.player_image = player_img
+            print("  [OK] Loaded player image")
+            
+            bg_img = pygame.image.load(f'{self.asset_path}/bg.png')
+            if pygame.display.get_surface() is not None:
+                bg_img = bg_img.convert_alpha()
+            self.background_image = bg_img
+            print("  [OK] Loaded background image")
+            
+            platform_img = pygame.image.load(f'{self.asset_path}/wood.png')
+            if pygame.display.get_surface() is not None:
+                platform_img = platform_img.convert_alpha()
+            self.platform_image = platform_img
+            print("  [OK] Loaded platform image")
+            
+            wind_img = pygame.image.load(f'{self.asset_path}/wind.png')
+            if pygame.display.get_surface() is not None:
+                wind_img = wind_img.convert_alpha()
+            self.wind_image = pygame.transform.scale(wind_img, (65, 65))
+            print("  [OK] Loaded wind image")
+            
+            bird_sheet_img = pygame.image.load(f'{self.asset_path}/bird.png')
+            if pygame.display.get_surface() is not None:
+                bird_sheet_img = bird_sheet_img.convert_alpha()
+            self.bird_sheet = SpriteSheet(bird_sheet_img)
+            print("  [OK] Loaded bird spritesheet")
+            
+            # Load sounds
+            try:
+                self.jump_fx = pygame.mixer.Sound(f'{self.asset_path}/jump.mp3')
+                self.jump_fx.set_volume(config.get("SOUND_VOLUME", 0.5))
+                print("  [OK] Loaded jump sound")
+            except:
+                print("  [WARNING] Could not load jump sound")
+            
+            try:
+                self.death_fx = pygame.mixer.Sound(f'{self.asset_path}/death.mp3')
+                self.death_fx.set_volume(config.get("SOUND_VOLUME", 0.5))
+                print("  [OK] Loaded death sound")
+            except:
+                print("  [WARNING] Could not load death sound")
+            
+            print("[SUCCESS] All assets loaded successfully")
+        except FileNotFoundError as e:
+            print(f"[ERROR] Asset file not found: {e}")
+            raise
+        except Exception as e:
+            print(f"[ERROR] Error loading assets: {e}")
+            raise
+    
+    def _reset_game(self):
+        """Reset the game state."""
+        self.world = World(
+            self.background_image,
+            self.platform_image,
+            self.bird_sheet,
+            self.wind_image
+        )
+        self.player = Player(
+            self.world,
+            self.screen_width // 2,
+            self.screen_height - 150,
+            self.player_image,
+            self.jump_fx
+        )
+        self.steps = 0
+    
+    def _get_observation(self):
+        """Get current game state as observation."""
+        player_rect = self.player.rect
+        
+        # Find nearest platform
+        platforms = self.world.platform_group.sprites()
+        nearest_platform = None
+        min_distance = float('inf')
+        
+        for platform in platforms:
+            distance = abs(platform.rect.y - player_rect.y)
+            if distance < min_distance and platform.rect.y > player_rect.y:
+                min_distance = distance
+                nearest_platform = platform
+        
+        if nearest_platform:
+            nearest_platform_x = float(nearest_platform.rect.x)
+            nearest_platform_y = float(nearest_platform.rect.y)
+            nearest_platform_width = float(nearest_platform.rect.width)
+        else:
+            nearest_platform_x = 0.0
+            nearest_platform_y = self.screen_height
+            nearest_platform_width = 0.0
+        
+        # Find nearest enemy
+        enemies = self.world.enemy_group.sprites()
+        nearest_enemy = None
+        min_enemy_distance = float('inf')
+        
+        for enemy in enemies:
+            distance = abs(enemy.rect.x - player_rect.x) + abs(enemy.rect.y - player_rect.y)
+            if distance < min_enemy_distance:
+                min_enemy_distance = distance
+                nearest_enemy = enemy
+        
+        if nearest_enemy:
+            nearest_enemy_x = float(nearest_enemy.rect.x)
+            nearest_enemy_y = float(nearest_enemy.rect.y)
+        else:
+            nearest_enemy_x = 0.0
+            nearest_enemy_y = -1000.0
+        
+        # Find nearest wind
+        winds = self.world.wind_group.sprites()
+        nearest_wind = None
+        min_wind_distance = float('inf')
+        
+        for wind in winds:
+            distance = abs(wind.rect.x - player_rect.x) + abs(wind.rect.y - player_rect.y)
+            if distance < min_wind_distance:
+                min_wind_distance = distance
+                nearest_wind = wind
+        
+        if nearest_wind:
+            nearest_wind_x = float(nearest_wind.rect.x)
+            nearest_wind_y = float(nearest_wind.rect.y)
+        else:
+            nearest_wind_x = 0.0
+            nearest_wind_y = -1000.0
+        
+        observation = np.array([
+            float(player_rect.x),
+            float(player_rect.y),
+            float(self.player.vel_y),
+            nearest_platform_x,
+            nearest_platform_y,
+            nearest_platform_width,
+            nearest_enemy_x,
+            nearest_enemy_y,
+            nearest_wind_x,
+            nearest_wind_y,
+            float(self.world.score)
+        ], dtype=np.float32)
+        
+        return observation
+    
+    def _calculate_reward(self, prev_score):
+        """Calculate reward based on game state."""
+        score_delta = self.world.score - prev_score
+        reward = score_delta / 100.0  # Normalize score
+        
+        # Penalty for dying
+        if self.world.game_over:
+            reward -= 10.0
+        
+        return reward
+    
+    def step(self, action):
+        """Execute one step of the environment."""
+        prev_score = self.world.score
+        
+        # Convert action to controller action
+        if action == 0:
+            controller_action = Actions.LEFT
+        elif action == 1:
+            controller_action = Actions.RIGHT
+        else:
+            controller_action = None
+        
+        # Update game
+        scroll = self.player.move(controller_action)
+        self.world.update(scroll)
+        
+        # Check game over conditions
+        if self.player.rect.top > self.screen_height:
+            self.world.game_over = True
+        
+        if pygame.sprite.spritecollide(self.player, self.world.enemy_group, False):
+            if pygame.sprite.spritecollide(
+                self.player, self.world.enemy_group, False, pygame.sprite.collide_mask
+            ):
+                self.world.game_over = True
+        
+        # Calculate reward
+        reward = self._calculate_reward(prev_score)
+        
+        # Get observation
+        observation = self._get_observation()
+        
+        # Check termination
+        terminated = self.world.game_over
+        
+        # Check truncation (max steps)
+        self.steps += 1
+        truncated = self.steps >= self.max_steps
+        
+        # Info dictionary
+        info = {
+            "score": self.world.score,
+            "steps": self.steps,
+        }
+        
+        return observation, reward, terminated, truncated, info
+    
+    def reset(self, seed=None, options=None):
+        """Reset the environment."""
+        super().reset(seed=seed)
+        self._reset_game()
+        observation = self._get_observation()
+        info = {}
+        return observation, info
+    
+    def render(self):
+        """Render the game."""
+        if self.render_mode == "human":
+            # Ensure screen is created on first render
+            if self.screen is None:
+                self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+                pygame.display.set_caption('BouncAI-Gymnasium')
+                self.clock = pygame.time.Clock()
+            
+            try:
+                # Fill screen with background first
+                self.screen.fill((0, 0, 0))
+                self.world.draw(self.screen)
+                self.player.draw(self.screen)
+                pygame.display.update()
+                
+                # Handle events to keep window responsive
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.world.game_over = True
+                
+                if self.clock:
+                    self.clock.tick(config["FPS"])
+            except pygame.error as e:
+                print(f"[ERROR] Pygame render error: {e}")
+                print(f"[DEBUG] Screen is None: {self.screen is None}")
+                print(f"[DEBUG] Render mode: {self.render_mode}")
+                raise
+        elif self.render_mode == "rgb_array":
+            # Convert pygame surface to numpy array
+            if self.screen:
+                return pygame.surfarray.array3d(self.screen)
+            return None
+    
+    def close(self):
+        """Close the environment."""
+        if self.screen:
+            pygame.quit()

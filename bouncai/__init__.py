@@ -11,3 +11,15 @@ provided by the CLI module.
 __author__ = """Georg Jäger"""
 __email__ = 'georg.jaeger@informatik.tu-freiberg.de'
 __version__ = '0.1.0'
+
+import gymnasium as gym
+from gymnasium.envs.registration import register
+
+from bouncai.env import BouncAIEnv
+
+# Register the environment
+register(
+    id='BouncAI-v0',
+    entry_point='bouncai.env:BouncAIEnv',
+    max_episode_steps=10000,
+)
