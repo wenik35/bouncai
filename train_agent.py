@@ -1,9 +1,11 @@
 import gymnasium as gym
-from stable_baselines3 import PPO
+from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from bouncai.env import BouncAIEnv
 import os
 import pygame
+import torch as th
 
 # Ensure assets exist
 if not os.path.exists("assets"):
@@ -53,46 +55,77 @@ if not pygame.display.get_init():
     except Exception as e:
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
-# Create training environment (no render for speed)
-print("Creating training environment...")
-train_env = BouncAIEnv(render_mode=None)
+# Number of parallel environments
+NUM_ENVS = 4
 
-# Create render environment for visualization
-print("Creating render environment...")
-render_env = BouncAIEnv(render_mode="human")
+def make_env(rank):
+    """Factory function to create environment instances for SubprocVecEnv."""
+    def _init():
+        env = BouncAIEnv(render_mode=None)
+        return env
+    return _init
 
-# Create or load model
-try:
-    model = PPO.load("bouncai_model", env=train_env)
-    print("Loaded existing model")
-except:
-    print("Creating new model")
-    model = PPO(
-        "MlpPolicy",
-        train_env,
-        verbose=1,
-        learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
-    )
+# Initialize pygame first
+if not pygame.display.get_init():
+    print("Initializing pygame display...")
+    try:
+        # Try to create a dummy display to ensure video mode is set
+        pygame.init()
+        pygame.mixer.init()
+    except Exception as e:
+        print(f"[ERROR] Failed to initialize pygame: {e}")
 
-# Train with rendering callback
-render_callback = RenderCallback(render_env, render_freq=5000)
+if __name__ == "__main__":
+    # Create parallel training environments
+    print(f"Creating {NUM_ENVS} parallel training environments...")
+    train_env = SubprocVecEnv([make_env(i) for i in range(NUM_ENVS)])
 
-try:
-    model.learn(total_timesteps=100000, callback=render_callback, progress_bar=True)
-except KeyboardInterrupt:
-    print("\nTraining interrupted by user")
-except Exception as e:
-    print(f"\n[ERROR] Training failed: {e}")
-    import traceback
-    traceback.print_exc()
+    # Create render environment for visualization
+    print("Creating render environment...")
+    render_env = BouncAIEnv(render_mode="human")
 
-# Save model
-model.save("bouncai_model")
-print("Model saved as bouncai_model")
 
-train_env.close()
-render_env.close()
-pygame.quit()
+if __name__ == "__main__":
+    # Custom actor (pi) and value function (vf) networks
+    # of two layers of size 32 each with Relu activation function
+    # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
+    policy_kwargs = dict(activation_fn=th.nn.ReLU,
+                         net_arch=dict(pi=[128, 128], vf=[128, 128]))
+
+    # Create or load model
+    try:
+        model = PPO.load("bouncai_model", env=train_env)
+        print("Loaded existing model")
+    except:
+        print("Creating new model")
+        model = PPO(
+            "MlpPolicy",
+            train_env,
+    #        policy_kwargs=policy_kwargs,
+            verbose=1,
+            ent_coef = 0.05,
+            learning_rate=3e-4,
+            n_steps=2048,
+            batch_size=64,
+            n_epochs=10
+        )
+
+    # Train with rendering callback
+    render_callback = RenderCallback(render_env, render_freq=5000)
+
+    try:
+        model.learn(total_timesteps=2000000, callback=render_callback, progress_bar=True)
+    except KeyboardInterrupt:
+        print("\nTraining interrupted by user")
+    except Exception as e:
+        print(f"\n[ERROR] Training failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # Save model
+    model.save("bouncai_model")
+    print("Model saved as bouncai_model")
+
+    train_env.close()
+    render_env.close()
+    pygame.quit()

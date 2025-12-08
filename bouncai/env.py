@@ -61,14 +61,18 @@ class BouncAIEnv(gym.Env):
         # Action space: LEFT, RIGHT, or NO_ACTION
         self.action_space = spaces.Discrete(3)  # 0: LEFT, 1: RIGHT, 2: NO_ACTION
         
-        # Observation space: [player_x, player_y, player_vel_y, 
-        #                     nearest_platform_x, nearest_platform_y, 
-        #                     nearest_platform_width, nearest_enemy_x, nearest_enemy_y,
-        #                     nearest_wind_x, nearest_wind_y, score]
+        # Observation space: [player_x, player_y, player_vel_y,
+        #                     nearest_platform_x, nearest_platform_y, nearest_platform_width, * 10
+        #                     nearest_enemy_x, nearest_enemy_y,
+        #                     nearest_wind_x, nearest_wind_y]
+        # = 2 + 30 + 2 + 2 = 36 values
+        self.max_platforms = config.get("MAX_PLATFORMS", 10)
+        obs_size = 3 + self.max_platforms * 3 + 2 + 2  # 36
+
         self.observation_space = spaces.Box(
             low=-np.inf, 
             high=np.inf, 
-            shape=(11,), 
+            shape=(obs_size,),
             dtype=np.float32
         )
         
@@ -76,7 +80,7 @@ class BouncAIEnv(gym.Env):
         self.player = None
         self.high_score = 0
         self.steps = 0
-        self.max_steps = 20000
+        self.max_steps = 5000
         
         self._reset_game()
     
@@ -159,27 +163,26 @@ class BouncAIEnv(gym.Env):
     def _get_observation(self):
         """Get current game state as observation."""
         player_rect = self.player.rect
+        obs_list = []
+
+        # Player state
+        obs_list.append(float(player_rect.x))
+        obs_list.append(float(player_rect.y))
+        obs_list.append(float(self.player.vel_y))
         
-        # Find nearest platform
+        # Platforms
         platforms = self.world.platform_group.sprites()
-        nearest_platform = None
-        min_distance = float('inf')
-        
-        for platform in platforms:
-            distance = abs(platform.rect.y - player_rect.y)
-            if distance < min_distance and platform.rect.y > player_rect.y:
-                min_distance = distance
-                nearest_platform = platform
-        
-        if nearest_platform:
-            nearest_platform_x = float(nearest_platform.rect.x)
-            nearest_platform_y = float(nearest_platform.rect.y)
-            nearest_platform_width = float(nearest_platform.rect.width)
-        else:
-            nearest_platform_x = 0.0
-            nearest_platform_y = self.screen_height
-            nearest_platform_width = 0.0
-        
+        for i in range(self.max_platforms):
+            if i < len(platforms):
+                platform = platforms[i]
+                obs_list.append(float(platform.rect.x))
+                obs_list.append(float(platform.rect.y))
+                obs_list.append(float(platform.rect.width))
+            else:
+                obs_list.append(0.0)
+                obs_list.append(float(self.screen_height))
+                obs_list.append(0.0)
+
         # Find nearest enemy
         enemies = self.world.enemy_group.sprites()
         nearest_enemy = None
@@ -192,11 +195,11 @@ class BouncAIEnv(gym.Env):
                 nearest_enemy = enemy
         
         if nearest_enemy:
-            nearest_enemy_x = float(nearest_enemy.rect.x)
-            nearest_enemy_y = float(nearest_enemy.rect.y)
+            obs_list.append(float(nearest_enemy.rect.x))
+            obs_list.append(float(nearest_enemy.rect.y))
         else:
-            nearest_enemy_x = 0.0
-            nearest_enemy_y = -1000.0
+            obs_list.append(0.0)
+            obs_list.append(-1000.0)
         
         # Find nearest wind
         winds = self.world.wind_group.sprites()
@@ -210,25 +213,13 @@ class BouncAIEnv(gym.Env):
                 nearest_wind = wind
         
         if nearest_wind:
-            nearest_wind_x = float(nearest_wind.rect.x)
-            nearest_wind_y = float(nearest_wind.rect.y)
+            obs_list.append(float(nearest_wind.rect.x))
+            obs_list.append(float(nearest_wind.rect.y))
         else:
-            nearest_wind_x = 0.0
-            nearest_wind_y = -1000.0
+            obs_list.append(0.0)
+            obs_list.append(-1000.0)
         
-        observation = np.array([
-            float(player_rect.x),
-            float(player_rect.y),
-            float(self.player.vel_y),
-            nearest_platform_x,
-            nearest_platform_y,
-            nearest_platform_width,
-            nearest_enemy_x,
-            nearest_enemy_y,
-            nearest_wind_x,
-            nearest_wind_y,
-            float(self.world.score)
-        ], dtype=np.float32)
+        observation = np.array(obs_list, dtype=np.float32)
         
         return observation
     
@@ -247,6 +238,8 @@ class BouncAIEnv(gym.Env):
         """Execute one step of the environment."""
         prev_score = self.world.score
         
+        prev_vel_y = float(self.player.vel_y)
+
         # Convert action to controller action
         if action == 0:
             controller_action = Actions.LEFT
@@ -272,6 +265,16 @@ class BouncAIEnv(gym.Env):
         # Calculate reward
         reward = self._calculate_reward(prev_score)
         
+        # small reward for bouncing upwards
+        curr_vel_y = float(self.player.vel_y)
+        if prev_vel_y > 0 and curr_vel_y < 0:
+            reward += 0.5
+        
+        reward -= 0.001  # Small time penalty to encourage faster progress
+
+        if curr_vel_y > 0:
+            reward -= 0.01  # Penalty for falling fast
+
         # Get observation
         observation = self._get_observation()
         
