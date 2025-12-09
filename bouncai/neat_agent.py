@@ -62,35 +62,44 @@ def _make_world():
     return world, player
 
 
-def _extract_inputs(player, platforms):
-    """Convert a state into a small list of floats for the network.
+def _extract_inputs(player, platforms, max_platforms=10):
+    """Convert a state into a feature vector for the network.
 
-    Inputs: player x, player y, player vel_y, nearest platform dx, nearest platform dy
-    All normalized to screen size.
+    Inputs: player x, y, vel_y, then for each of up to max_platforms:
+            (platform_x, platform_y, platform_width) normalized to screen dimensions.
+    
+    If fewer platforms exist, pad with zeros.
+    Total inputs: 3 (player) + max_platforms * 3 = 33 (for max_platforms=10)
     """
     sw = game_config.get('SCREEN_WIDTH', 400)
     sh = game_config.get('SCREEN_HEIGHT', 600)
 
+    inputs = []
+    
+    # Player state (always 3 inputs)
     px = player.rect.x / float(sw)
     py = player.rect.y / float(sh)
     pv = player.vel_y / 50.0
+    inputs.extend([px, py, pv])
 
-    nearest_dx = 0.0
-    nearest_dy = 1.0
-    if platforms:
-        best = None
-        best_dist = None
-        for p in platforms:
-            dy = p.rect.y - player.rect.y
-            dist = abs(dy)
-            if best is None or dist < best_dist:
-                best = p
-                best_dist = dist
-        if best is not None:
-            nearest_dx = (best.rect.x - player.rect.x) / float(sw)
-            nearest_dy = (best.rect.y - player.rect.y) / float(sh)
+    # All platforms (sorted by distance from player, closest first)
+    sorted_platforms = sorted(
+        platforms,
+        key=lambda p: abs(p.rect.y - player.rect.y)
+    )[:max_platforms]
 
-    return [px, py, pv, nearest_dx, nearest_dy]
+    # Add platform data
+    for p in sorted_platforms:
+        platform_x = p.rect.x / float(sw)
+        platform_y = p.rect.y / float(sh)
+        platform_w = p.rect.width / float(sw)
+        inputs.extend([platform_x, platform_y, platform_w])
+
+    # Pad with zeros if fewer platforms than max
+    for _ in range(len(sorted_platforms), max_platforms):
+        inputs.extend([0.0, 0.0, 0.0])
+
+    return inputs
 
 
 def _run_episode_for_genome(genome, neat_config, max_steps=5000, debug=False):
