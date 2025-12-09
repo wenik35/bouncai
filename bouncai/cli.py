@@ -11,6 +11,8 @@ import click
 import bouncai.bouncai as bouncai
 from bouncai.world.config import load_config, create_default_config
 import bouncai.world.config as config_module
+import bouncai.bouncai as game_main
+from bouncai import neat_agent
 
 @click.command()
 @click.option('--config', '-c', type=click.Path(exists=True, dir_okay=False, readable=True),
@@ -19,7 +21,15 @@ import bouncai.world.config as config_module
               help='Generate a default configuration file at the specified path.')
 @click.option('--manual', '-m', is_flag=True,
               help='Use manual control for the player (default is AI control).')
-def main(config=None, generate_config=None, args=None, manual=False):
+@click.option('--train-neat', is_flag=True,
+              help='Run a NEAT training session (requires neat-python).')
+@click.option('--neat-gens', default=10, show_default=True,
+              help='Number of generations to evolve when training NEAT.')
+@click.option('--neat-save', default='best_genome.pkl', show_default=True,
+              help='Path to save the best genome from NEAT training.')
+@click.option('--ai-genome', type=click.Path(exists=True, dir_okay=False, readable=True),
+              help='Path to a saved genome to run in the game.')
+def main(config=None, generate_config=None, args=None, manual=False, train_neat=False, neat_gens=10, neat_save='best_genome.pkl', ai_genome=None):
     """Console script for launching the BouncAI game.
 
     This function serves as the entry point for the CLI. When executed,
@@ -60,7 +70,24 @@ def main(config=None, generate_config=None, args=None, manual=False):
     if manual:
         config_module.config["CONTROLLER"] = "manual"
 
-    score = bouncai.run()
+    # If ai_genome provided, instruct game to use it
+    if ai_genome:
+        config_module.config["AI_GENOME_PATH"] = ai_genome
+        config_module.config["CONTROLLER"] = "ai"
+
+    # If training requested, run NEAT trainer and exit
+    if train_neat:
+        click.echo(f"Starting NEAT training for {neat_gens} generations...")
+        try:
+            path = neat_agent.train(generations=neat_gens, save_path=neat_save)
+            click.echo(f"Training complete. Best genome saved to {path}")
+        except Exception as e:
+            click.echo(f"Error during NEAT training: {e}")
+            return 1
+        return 0
+
+    # Otherwise run the game normally
+    score = game_main.run()
     print(f"Final Score: {score}")
     return 0
 

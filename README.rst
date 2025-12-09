@@ -286,6 +286,83 @@ Using this information, your AI can analyze the game environment to make intelli
 - Planning ahead based on platform and enemy positions
 - Optimizing movement patterns as score/difficulty increases
 
+NEAT-based AI Training
+^^^^^^^^^^^^^^^^^^^^^^
+
+BouncAI includes a built-in NEAT (NeuroEvolution of Augmenting Topologies) trainer that evolves neural networks to play the game automatically. NEAT is a genetic algorithm that evolves the structure and weights of neural networks over time.
+
+**Training a NEAT Agent**
+
+To train a new NEAT agent, use the ``--train-neat`` flag:
+
+::
+
+   bouncai --train-neat
+
+Options for training:
+
+- ``--neat-gens``: Number of generations to train (default: 10)
+- ``--neat-save``: Path to save the best evolved genome (default: best_genome.pkl)
+
+Examples:
+
+::
+
+   # Train for 50 generations and save to my_best_agent.pkl
+   bouncai --train-neat --neat-gens 50 --neat-save my_best_agent.pkl
+
+   # Train for 100 generations with default save location
+   bouncai --train-neat --neat-gens 100
+
+**How NEAT Training Works**
+
+1. A population of random neural networks is created
+2. Each network plays the game for up to 5000 steps
+3. Networks are evaluated based on the score they achieve
+4. The best performers are kept and mutated to create the next generation
+5. New connections and nodes are added to successful networks
+6. This process repeats for the specified number of generations
+7. The best genome is saved as a pickled file for later use
+
+The NEAT agent uses a simple feature vector as input:
+
+- Normalized player X position (0-1)
+- Normalized player Y position (0-1)
+- Player vertical velocity (normalized)
+- Relative X distance to nearest platform (normalized)
+- Relative Y distance to nearest platform (normalized)
+
+The network outputs two values: a score for moving left and a score for moving right. The action with the higher score is selected.
+
+**Running a Trained Agent**
+
+To play with a previously trained agent, use the ``--ai-genome`` option:
+
+::
+
+   bouncai --ai-genome best_genome.pkl
+
+This will launch the game window where you can watch your trained agent play. The agent will automatically make decisions based on what it learned during training.
+
+Examples:
+
+::
+
+   # Run with the default trained genome
+   bouncai --ai-genome best_genome.pkl
+
+   # Run with a custom saved genome
+   bouncai --ai-genome my_best_agent.pkl
+
+**Training Tips**
+
+- Start with small generation counts (10-20) to test your setup
+- Increase ``--neat-gens`` to 50+ for better results (this will take longer)
+- Monitor the console output during training to see fitness scores improving
+- Save genomes with descriptive names (e.g., ``genome_gen50.pkl``, ``genome_fast.pkl``)
+- You can run multiple training sessions and compare the genomes
+- Training is CPU-intensive; use reasonable generation counts on slower machines
+
 Game Features
 ~~~~~~~~~~~~~
 
