@@ -290,7 +290,19 @@ class BouncAIEnv(gym.Env):
             "score": self.world.score,
             "steps": self.steps,
         }
-        
+
+        # If the episode terminated because the agent died, log the final score
+        if terminated:
+            try:
+                from datetime import datetime
+                #log_line = f"{datetime.utcnow().isoformat()}Z, score={self.world.score}, steps={self.steps}\n"
+                log_line = f"{self.world.score}\n"
+                with open("scores_log.txt", "a", encoding="utf-8") as f:
+                    f.write(log_line)
+            except Exception as e:
+                # Don't let logging errors crash the environment
+                print(f"[WARN] Failed to write score log: {e}")
+
         return observation, reward, terminated, truncated, info
     
     def reset(self, seed=None, options=None):

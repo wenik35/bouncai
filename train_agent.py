@@ -56,7 +56,7 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 # Number of parallel environments
-NUM_ENVS = 4
+NUM_ENVS = 1
 
 def make_env(rank):
     """Factory function to create environment instances for SubprocVecEnv."""
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     render_callback = RenderCallback(render_env, render_freq=5000)
 
     try:
-        model.learn(total_timesteps=2000000, callback=render_callback, progress_bar=True)
+        model.learn(total_timesteps=100000, callback=render_callback, progress_bar=True)
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")
     except Exception as e:
