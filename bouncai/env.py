@@ -223,7 +223,7 @@ class BouncAIEnv(gym.Env):
         
         return observation
     
-    def _calculate_reward(self, prev_score):
+    def _calculate_reward(self, prev_score, prev_vel_y):
         """Calculate reward based on game state."""
         score_delta = self.world.score - prev_score
         reward = score_delta / 100.0  # Normalize score
@@ -231,7 +231,17 @@ class BouncAIEnv(gym.Env):
         # Penalty for dying
         if self.world.game_over:
             reward -= 10.0
-        
+
+        # small reward for bouncing upwards
+        curr_vel_y = float(self.player.vel_y)
+        if prev_vel_y > 0 and curr_vel_y < 0:
+            reward += 0.5
+
+        reward -= 0.001  # Small time penalty to encourage faster progress
+
+        if curr_vel_y > 0:
+            reward -= 0.01  # Penalty for falling fast
+
         return reward
     
     def step(self, action):
@@ -263,18 +273,8 @@ class BouncAIEnv(gym.Env):
                 self.world.game_over = True
         
         # Calculate reward
-        reward = self._calculate_reward(prev_score)
+        reward = self._calculate_reward(prev_score, prev_vel_y)
         
-        # small reward for bouncing upwards
-        curr_vel_y = float(self.player.vel_y)
-        if prev_vel_y > 0 and curr_vel_y < 0:
-            reward += 0.5
-        
-        reward -= 0.001  # Small time penalty to encourage faster progress
-
-        if curr_vel_y > 0:
-            reward -= 0.01  # Penalty for falling fast
-
         # Get observation
         observation = self._get_observation()
         

@@ -28,7 +28,7 @@ class ManualController:
 class AIController:
     """AI controller that loads a pretrained RL model for display runs.
 
-    If a Stable-Baselines3 model is available at `model_path` the controller
+    If a Stable-Baselines3 DQN model is available at `model_path` the controller
     will use it (deterministic by default). If the model or the
     package is not available it falls back to random actions.
     """
@@ -37,14 +37,14 @@ class AIController:
         self.deterministic = deterministic
         self.model_path = model_path
 
-        # Try to load a Stable-Baselines3 model if available
+        # Try to load a Stable-Baselines3 DQN model if available
         try:
-            from stable_baselines3 import PPO  # noqa: F401
+            from stable_baselines3 import DQN  # noqa: F401
             if os.path.exists(model_path) or os.path.exists(model_path + ".zip"):
                 try:
-                    from stable_baselines3 import PPO
-                    self.model = PPO.load(model_path)
-                    print(f"[AIController] Loaded model from '{model_path}'")
+                    from stable_baselines3 import DQN
+                    self.model = DQN.load(model_path)
+                    print(f"[AIController] Loaded DQN model from '{model_path}'")
                 except Exception as e:  # loading failed
                     print(f"[AIController] Failed loading model '{model_path}': {e}")
                     self.model = None

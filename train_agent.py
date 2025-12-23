@@ -1,5 +1,5 @@
 import gymnasium as gym
-from stable_baselines3 import DQN, PPO
+from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from bouncai.env import BouncAIEnv
@@ -84,37 +84,42 @@ if __name__ == "__main__":
     print("Creating render environment...")
     render_env = BouncAIEnv(render_mode="human")
 
-
-if __name__ == "__main__":
-    # Custom actor (pi) and value function (vf) networks
-    # of two layers of size 32 each with Relu activation function
-    # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
-    policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                         net_arch=dict(pi=[128, 128], vf=[128, 128]))
+    # DQN network architecture configuration
+    # DQN uses a simple feedforward network for Q-value estimation
+    policy_kwargs = dict(
+        activation_fn=th.nn.ReLU,
+        net_arch=[256, 256]  # Two hidden layers with 256 neurons each
+    )
 
     # Create or load model
     try:
-        model = PPO.load("bouncai_model", env=train_env)
+        model = DQN.load("bouncai_model", env=train_env)
         print("Loaded existing model")
     except:
         print("Creating new model")
-        model = PPO(
+        model = DQN(
             "MlpPolicy",
             train_env,
-    #        policy_kwargs=policy_kwargs,
+            policy_kwargs=policy_kwargs,
             verbose=1,
-            ent_coef = 0.05,
-            learning_rate=3e-4,
-            n_steps=2048,
-            batch_size=64,
-            n_epochs=10
+            learning_rate=1e-4,
+            buffer_size=50000,
+            learning_starts=1000,
+            batch_size=32,
+            tau=1.0,
+            gamma=0.99,
+            train_freq=4,
+            target_update_interval=10000,
+            exploration_fraction=0.1,
+            exploration_initial_eps=1.0,
+            exploration_final_eps=0.05
         )
 
     # Train with rendering callback
-    render_callback = RenderCallback(render_env, render_freq=5000)
+    render_callback = RenderCallback(render_env, render_freq=10000000)
 
     try:
-        model.learn(total_timesteps=100000, callback=render_callback, progress_bar=True)
+        model.learn(total_timesteps=1000000, callback=render_callback, progress_bar=True)
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")
     except Exception as e:
