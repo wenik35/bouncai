@@ -61,13 +61,13 @@ class BouncAIEnv(gym.Env):
         # Action space: LEFT, RIGHT, or NO_ACTION
         self.action_space = spaces.Discrete(3)  # 0: LEFT, 1: RIGHT, 2: NO_ACTION
         
-        # Observation space: [player_x, player_y, player_vel_y,
+        # Observation space: [player_x, player_vel_y,
         #                     nearest_platform_x, nearest_platform_y, nearest_platform_width, * 10
         #                     nearest_enemy_x, nearest_enemy_y,
         #                     nearest_wind_x, nearest_wind_y]
         # = 2 + 30 + 2 + 2 = 36 values
         self.max_platforms = config.get("MAX_PLATFORMS", 10)
-        obs_size = 3 + self.max_platforms * 3 + 2 + 2  # 36
+        obs_size = 2 + self.max_platforms * 3 + 2 + 2  # 36
 
         self.observation_space = spaces.Box(
             low=-np.inf, 
@@ -159,80 +159,78 @@ class BouncAIEnv(gym.Env):
             self.jump_fx
         )
         self.steps = 0
-    
+
     def _get_observation(self):
-        """Get current game state as observation."""
+        """Get relative and normalized observation."""
         player_rect = self.player.rect
         obs_list = []
 
-        # Player state
-        obs_list.append(float(player_rect.x))
-        obs_list.append(float(player_rect.y))
-        obs_list.append(float(self.player.vel_y))
+        # 1. Player State
+        # Normalize X pos (0 to 1) just so it knows if it's near the edge
+        obs_list.append(player_rect.x / self.screen_width)
+        # Normalize Velocity (assuming max vel is roughly +/- 20)
+        obs_list.append(self.player.vel_y / 20.0)
         
-        # Platforms
+        # 2. Platform State (Relative & Normalized)
+        # Get all platforms
         platforms = self.world.platform_group.sprites()
+        
+        # Sort platforms by distance to player to ensure consistency
+        # (The nearest platform should always be at index 0 in the input vector)
+        platforms.sort(key=lambda p: abs(p.rect.y - player_rect.y))
+        
         for i in range(self.max_platforms):
             if i < len(platforms):
-                platform = platforms[i]
-                obs_list.append(float(platform.rect.x))
-                obs_list.append(float(platform.rect.y))
-                obs_list.append(float(platform.rect.width))
+                p = platforms[i]
+                # Relative X distance normalized (-1 to 1)
+                rel_x = (p.rect.x - player_rect.x) / self.screen_width
+                # Relative Y distance normalized (-1 to 1)
+                rel_y = (p.rect.y - player_rect.y) / self.screen_height
+                
+                obs_list.append(rel_x)
+                obs_list.append(rel_y)
+                obs_list.append(p.rect.width / self.screen_width) # Normalized width
             else:
-                obs_list.append(0.0)
-                obs_list.append(float(self.screen_height))
+                # Padding for missing platforms
+                obs_list.append(0.0) 
+                obs_list.append(1.0) # Far below/away
                 obs_list.append(0.0)
 
-        # Find nearest enemy
+        # 3. Enemy State (Relative & Normalized)
         enemies = self.world.enemy_group.sprites()
-        nearest_enemy = None
-        min_enemy_distance = float('inf')
-        
-        for enemy in enemies:
-            distance = abs(enemy.rect.x - player_rect.x) + abs(enemy.rect.y - player_rect.y)
-            if distance < min_enemy_distance:
-                min_enemy_distance = distance
-                nearest_enemy = enemy
-        
-        if nearest_enemy:
-            obs_list.append(float(nearest_enemy.rect.x))
-            obs_list.append(float(nearest_enemy.rect.y))
+        if enemies:
+            # Find nearest enemy
+            nearest_enemy = min(enemies, key=lambda e: (e.rect.x - player_rect.x)**2 + (e.rect.y - player_rect.y)**2)
+            obs_list.append((nearest_enemy.rect.x - player_rect.x) / self.screen_width)
+            obs_list.append((nearest_enemy.rect.y - player_rect.y) / self.screen_height)
         else:
             obs_list.append(0.0)
-            obs_list.append(-1000.0)
-        
-        # Find nearest wind
+            obs_list.append(1.0) # Far away
+
+        # 4. Wind State (Relative & Normalized)
         winds = self.world.wind_group.sprites()
-        nearest_wind = None
-        min_wind_distance = float('inf')
-        
-        for wind in winds:
-            distance = abs(wind.rect.x - player_rect.x) + abs(wind.rect.y - player_rect.y)
-            if distance < min_wind_distance:
-                min_wind_distance = distance
-                nearest_wind = wind
-        
-        if nearest_wind:
-            obs_list.append(float(nearest_wind.rect.x))
-            obs_list.append(float(nearest_wind.rect.y))
+        if winds:
+            nearest_wind = min(winds, key=lambda w: (w.rect.x - player_rect.x)**2 + (w.rect.y - player_rect.y)**2)
+            obs_list.append((nearest_wind.rect.x - player_rect.x) / self.screen_width)
+            obs_list.append((nearest_wind.rect.y - player_rect.y) / self.screen_height)
         else:
             obs_list.append(0.0)
-            obs_list.append(-1000.0)
-        
-        observation = np.array(obs_list, dtype=np.float32)
-        
-        return observation
+            obs_list.append(1.0)
+
+        # Note: You removed player absolute Y. 
+        # The agent doesn't need to know its absolute height to decide how to jump.
+
+        return np.array(obs_list, dtype=np.float32)
     
     def _calculate_reward(self, prev_score):
         """Calculate reward based on game state."""
-        score_delta = self.world.score - prev_score
-        reward = score_delta / 100.0  # Normalize score
         
         # Penalty for dying
         if self.world.game_over:
-            reward -= 10.0
-        
-        return reward
+            return -50.0
+        else:
+            score_delta = self.world.score - prev_score
+            return score_delta / 100.0  # Normalize score
     
     def step(self, action):
         """Execute one step of the environment."""
@@ -265,15 +263,15 @@ class BouncAIEnv(gym.Env):
         # Calculate reward
         reward = self._calculate_reward(prev_score)
         
-        # small reward for bouncing upwards
-        curr_vel_y = float(self.player.vel_y)
-        if prev_vel_y > 0 and curr_vel_y < 0:
-            reward += 0.5
+        # # small reward for bouncing upwards
+        # curr_vel_y = float(self.player.vel_y)
+        # if prev_vel_y > 0 and curr_vel_y < 0:
+        #     reward += 0.5
         
-        reward -= 0.001  # Small time penalty to encourage faster progress
+        # reward -= 0.001  # Small time penalty to encourage faster progress
 
-        if curr_vel_y > 0:
-            reward -= 0.01  # Penalty for falling fast
+        # if curr_vel_y > 0:
+        #     reward -= 0.01  # Penalty for falling fast
 
         # Get observation
         observation = self._get_observation()

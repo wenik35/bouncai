@@ -31,9 +31,12 @@ class SpriteSheet():
         Returns:
             pygame.Surface: The extracted and processed frame image
         """
-        image = pygame.Surface((width, height)).convert_alpha()
+        # Create a surface with per-pixel alpha without requiring a display
+        image = pygame.Surface((width, height), pygame.SRCALPHA)
         image.blit(self.sheet, (0, 0), ((frame * width), 0, width, height))
         image = pygame.transform.scale(image, (int(width * scale), int(height * scale)))
-        image.set_colorkey(colour)
+        # If a colorkey is provided, still set it (keeps compatibility)
+        if colour is not None:
+            image.set_colorkey(colour)
 
         return image

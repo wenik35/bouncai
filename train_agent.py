@@ -103,7 +103,7 @@ if __name__ == "__main__":
             train_env,
     #        policy_kwargs=policy_kwargs,
             verbose=1,
-            ent_coef = 0.05,
+            ent_coef = 0.005,
             learning_rate=3e-4,
             n_steps=2048,
             batch_size=64,
@@ -111,10 +111,10 @@ if __name__ == "__main__":
         )
 
     # Train with rendering callback
-    render_callback = RenderCallback(render_env, render_freq=5000)
+    render_callback = RenderCallback(render_env, render_freq=5000000)
 
     try:
-        model.learn(total_timesteps=100000, callback=render_callback, progress_bar=True)
+        model.learn(total_timesteps=1000000, callback=render_callback, progress_bar=True)
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")
     except Exception as e:
