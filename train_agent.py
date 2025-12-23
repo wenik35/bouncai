@@ -105,7 +105,7 @@ if __name__ == "__main__":
             verbose=1,
             ent_coef = 0.005,
             learning_rate=3e-4,
-            n_steps=2048,
+            n_steps=8192,
             batch_size=64,
             n_epochs=10
         )

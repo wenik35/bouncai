@@ -67,7 +67,7 @@ class BouncAIEnv(gym.Env):
         #                     nearest_wind_x, nearest_wind_y]
         # = 2 + 30 + 2 + 2 = 36 values
         self.max_platforms = config.get("MAX_PLATFORMS", 10)
-        obs_size = 2 + self.max_platforms * 3 + 2 + 2  # 36
+        obs_size = 3 + self.max_platforms * 3 + 2 + 2  # 36
 
         self.observation_space = spaces.Box(
             low=-np.inf, 
@@ -170,6 +170,7 @@ class BouncAIEnv(gym.Env):
         obs_list.append(player_rect.x / self.screen_width)
         # Normalize Velocity (assuming max vel is roughly +/- 20)
         obs_list.append(self.player.vel_y / 20.0)
+        obs_list.append(self.player.vel_x / 20.0)
         
         # 2. Platform State (Relative & Normalized)
         # Get all platforms
@@ -205,7 +206,7 @@ class BouncAIEnv(gym.Env):
             obs_list.append((nearest_enemy.rect.y - player_rect.y) / self.screen_height)
         else:
             obs_list.append(0.0)
-            obs_list.append(1.0) # Far away
+            obs_list.append(100.0) # Far away
 
         # 4. Wind State (Relative & Normalized)
         winds = self.world.wind_group.sprites()
@@ -215,7 +216,7 @@ class BouncAIEnv(gym.Env):
             obs_list.append((nearest_wind.rect.y - player_rect.y) / self.screen_height)
         else:
             obs_list.append(0.0)
-            obs_list.append(1.0)
+            obs_list.append(100.0)
 
         # Note: You removed player absolute Y. 
         # The agent doesn't need to know its absolute height to decide how to jump.

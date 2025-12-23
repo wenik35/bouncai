@@ -40,6 +40,7 @@ class Player():
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = (x, y)
         self.vel_y = 0
+        self.vel_x = 0
         self.flip = False
 
 
@@ -108,6 +109,8 @@ class Player():
         #update rectangle position
         self.rect.x += dx
         self.rect.y += dy + scroll
+
+        self.vel_x = dx
 
         #update mask
         self.mask = pygame.mask.from_surface(self.image)
