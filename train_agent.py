@@ -1,7 +1,7 @@
 import gymnasium as gym
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, DummyVecEnv
 from bouncai.env import BouncAIEnv
 import os
 import pygame
@@ -16,7 +16,8 @@ class RenderCallback(BaseCallback):
     
     def __init__(self, render_env, render_freq=5000):
         super().__init__()
-        self.render_env = render_env
+        render_env_base = BouncAIEnv(render_mode="human")
+        self.render_env = VecFrameStack(DummyVecEnv([lambda: render_env_base]), n_stack=4)
         self.render_freq = render_freq
         self.last_render = 0
     
@@ -79,13 +80,12 @@ if __name__ == "__main__":
     # Create parallel training environments
     print(f"Creating {NUM_ENVS} parallel training environments...")
     train_env = SubprocVecEnv([make_env(i) for i in range(NUM_ENVS)])
+    train_env = VecFrameStack(train_env, n_stack=4)
 
     # Create render environment for visualization
     print("Creating render environment...")
     render_env = BouncAIEnv(render_mode="human")
 
-
-if __name__ == "__main__":
     # Custom actor (pi) and value function (vf) networks
     # of two layers of size 32 each with Relu activation function
     # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
