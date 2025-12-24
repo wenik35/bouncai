@@ -17,16 +17,26 @@ import os
 from pygame import mixer
 
 
+
 class BouncAIEnv(gym.Env):
     """Custom Gymnasium environment for BouncAI game."""
     
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
+
+    std_params = {
+        "death": 10,
+        "survival": 0,
+        "survival_start": 100,
+        "bounce": 5,
+        "save_path": "models/"
+    }
     
-    def __init__(self, render_mode=None, asset_path="assets"):
+    def __init__(self, render_mode=None, params=std_params, asset_path="assets"):
         super().__init__()
         
         self.render_mode = render_mode
         self.asset_path = asset_path
+        self.params = params
         
         # Initialize pygame if not already done
         if not pygame.get_init():
@@ -223,15 +233,25 @@ class BouncAIEnv(gym.Env):
 
         return np.array(obs_list, dtype=np.float32)
     
-    def _calculate_reward(self, prev_score):
+    def _calculate_reward(self, prev_score, prev_vel_y):
         """Calculate reward based on game state."""
         
         # Penalty for dying
         if self.world.game_over:
-            return -50.0
+            return - self.params["death"]
         else:
             score_delta = self.world.score - prev_score
-            return score_delta / 100.0  # Normalize score
+            reward = score_delta / 100.0
+
+            # small reward for bouncing upwards
+            curr_vel_y = float(self.player.vel_y)
+            if prev_vel_y > 0 and curr_vel_y < 0:
+                reward += self.params["bounce"]
+            
+            if self.world.score < self.params["survival_start"]:
+                reward += self.params["survival"]
+
+            return reward
     
     def step(self, action):
         """Execute one step of the environment."""
@@ -262,17 +282,7 @@ class BouncAIEnv(gym.Env):
                 self.world.game_over = True
         
         # Calculate reward
-        reward = self._calculate_reward(prev_score)
-        
-        # # small reward for bouncing upwards
-        # curr_vel_y = float(self.player.vel_y)
-        # if prev_vel_y > 0 and curr_vel_y < 0:
-        #     reward += 0.5
-        
-        # reward -= 0.001  # Small time penalty to encourage faster progress
-
-        # if curr_vel_y > 0:
-        #     reward -= 0.01  # Penalty for falling fast
+        reward = self._calculate_reward(prev_score, prev_vel_y)
 
         # Get observation
         observation = self._get_observation()
@@ -296,7 +306,7 @@ class BouncAIEnv(gym.Env):
                 from datetime import datetime
                 #log_line = f"{datetime.utcnow().isoformat()}Z, score={self.world.score}, steps={self.steps}\n"
                 log_line = f"{self.world.score}\n"
-                with open("scores_log.txt", "a", encoding="utf-8") as f:
+                with open(self.params["save_path"] + "scores_log.txt", "a+", encoding="utf-8") as f:
                     f.write(log_line)
             except Exception as e:
                 # Don't let logging errors crash the environment
