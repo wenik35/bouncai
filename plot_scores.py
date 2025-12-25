@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def make_plot(path=""):
+def make_plot(path="models\\death200_survival1_bounce0\\"):
     # Read the scores from file
     scores = []
     try:
@@ -60,3 +60,6 @@ def make_plot(path=""):
     plt.savefig(path + "scores_plot.png", dpi=150, bbox_inches='tight')
     print(f"Plot saved to scores_plot.png")
     #plt.show()
+
+if __name__ == "__main__":
+    make_plot()

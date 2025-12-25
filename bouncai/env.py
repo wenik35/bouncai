@@ -53,9 +53,6 @@ class BouncAIEnv(gym.Env):
         self.screen = None
         self.clock = None
         
-        # Don't create screen yet if render_mode is human - wait until first render call
-        # This prevents "no video mode has been set" errors
-        
         # Initialize asset variables
         self.player_image = None
         self.background_image = None
@@ -71,13 +68,13 @@ class BouncAIEnv(gym.Env):
         # Action space: LEFT, RIGHT, or NO_ACTION
         self.action_space = spaces.Discrete(3)  # 0: LEFT, 1: RIGHT, 2: NO_ACTION
         
-        # Observation space: [player_x, player_vel_y,
+        # Observation space: [player_x, player_y,
         #                     nearest_platform_x, nearest_platform_y, nearest_platform_width, * 10
         #                     nearest_enemy_x, nearest_enemy_y,
         #                     nearest_wind_x, nearest_wind_y]
         # = 2 + 30 + 2 + 2 = 36 values
         self.max_platforms = config.get("MAX_PLATFORMS", 10)
-        obs_size = 3 + self.max_platforms * 3 + 2 + 2  # 36
+        obs_size = 2 + self.max_platforms * 3 + 2 + 2  # 36
 
         self.observation_space = spaces.Box(
             low=-np.inf, 
@@ -178,17 +175,15 @@ class BouncAIEnv(gym.Env):
         # 1. Player State
         # Normalize X pos (0 to 1) just so it knows if it's near the edge
         obs_list.append(player_rect.x / self.screen_width)
-        # Normalize Velocity (assuming max vel is roughly +/- 20)
-        obs_list.append(self.player.vel_y / 20.0)
-        obs_list.append(self.player.vel_x / 20.0)
+        obs_list.append(player_rect.y / self.screen_height)
         
         # 2. Platform State (Relative & Normalized)
         # Get all platforms
         platforms = self.world.platform_group.sprites()
         
         # Sort platforms by distance to player to ensure consistency
-        platforms = [p for p in platforms if p.rect.y <= player_rect.y]
-        platforms.sort(key=lambda p: player_rect.y - p.rect.y)
+        #platforms = [p for p in platforms if p.rect.y <= player_rect.y - 300]
+        #platforms.sort(key=lambda p: player_rect.y - p.rect.y)
         
         for i in range(self.max_platforms):
             if i < len(platforms):
@@ -216,7 +211,7 @@ class BouncAIEnv(gym.Env):
             obs_list.append((nearest_enemy.rect.y - player_rect.y) / self.screen_height)
         else:
             obs_list.append(0.0)
-            obs_list.append(100.0) # Far away
+            obs_list.append(1.0) # Far away
 
         # 4. Wind State (Relative & Normalized)
         winds = self.world.wind_group.sprites()
@@ -226,10 +221,7 @@ class BouncAIEnv(gym.Env):
             obs_list.append((nearest_wind.rect.y - player_rect.y) / self.screen_height)
         else:
             obs_list.append(0.0)
-            obs_list.append(100.0)
-
-        # Note: You removed player absolute Y. 
-        # The agent doesn't need to know its absolute height to decide how to jump.
+            obs_list.append(1.0)
 
         return np.array(obs_list, dtype=np.float32)
     

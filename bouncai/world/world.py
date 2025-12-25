@@ -67,7 +67,7 @@ class World():
             float: Current difficulty level between 0.0 (easiest) and 1.0 (hardest)
         """
         # updatae difficulty based on score
-        return exp(-1.0 * float(self.score) / (float(config["DIFFICULTY_INCREASE"])*(delay+1.0)))
+        return 0.7 #exp(-1.0 * float(self.score) / (float(config["DIFFICULTY_INCREASE"])*(delay+1.0)))
 
     #function for drawing the background
     def draw_bg(self, screen):

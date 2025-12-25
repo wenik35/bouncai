@@ -1,7 +1,6 @@
-import gymnasium as gym
-from stable_baselines3 import DQN, PPO
+from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, DummyVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, DummyVecEnv, VecNormalize
 from bouncai.env import BouncAIEnv
 import os
 import pygame
@@ -18,7 +17,7 @@ class RenderCallback(BaseCallback):
     def __init__(self, render_env, render_freq=5000):
         super().__init__()
         render_env_base = BouncAIEnv(render_mode="human")
-        self.render_env = VecFrameStack(DummyVecEnv([lambda: render_env_base]), n_stack=4)
+        self.render_env = VecNormalize(VecFrameStack(DummyVecEnv([lambda: render_env_base]), n_stack=4), norm_obs=True, norm_reward=True, clip_obs=10.)
         self.render_freq = render_freq
         self.last_render = 0
     
@@ -78,11 +77,11 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 if __name__ == "__main__":
-    for death in [200]:
+    for death in [100]:
         for survival in [1]:
-            survival_start = 5000
+            survival_start = 0
 
-            for bounce in [0]:
+            for bounce in [10]:
                 path = f"models/death{death}_survival{survival}_bounce{bounce}/"
                 os.makedirs(path, exist_ok=True)
 
@@ -97,7 +96,7 @@ if __name__ == "__main__":
                 # Create parallel training environments
                 print(f"Creating {NUM_ENVS} parallel training environments...")
                 train_env = SubprocVecEnv([make_env(i, params) for i in range(NUM_ENVS)])
-                train_env = VecFrameStack(train_env, n_stack=4)
+                train_env = VecNormalize(VecFrameStack(train_env, n_stack=4), norm_obs=True, norm_reward=True, clip_obs=10.)
 
                 # Create render environment for visualization
                 print("Creating render environment...")
@@ -108,7 +107,7 @@ if __name__ == "__main__":
                 # of two layers of size 32 each with Relu activation function
                 # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
                 policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                                    net_arch=dict(pi=[size, size, size], vf=[size, size, size]))
+                                    net_arch=dict(pi=[size, size], vf=[size, size]))
 
                 # Create or load model
                 try:
@@ -122,14 +121,14 @@ if __name__ == "__main__":
                         policy_kwargs=policy_kwargs,
                         verbose=1,
                         ent_coef = 0.01,
-                        learning_rate=3e-4,
-                        n_steps=256,
-                        batch_size=64,
+                        learning_rate=1e-4,
+                        n_steps=1024,
+                        batch_size=1024,
                         n_epochs=10
                     )
 
                 # Train with rendering callback
-                #render_callback = RenderCallback(render_env, render_freq=5000000)
+                render_callback = RenderCallback(render_env, render_freq=50000)
 
                 try:
                     model.learn(total_timesteps=10000000, progress_bar=True)
@@ -142,6 +141,7 @@ if __name__ == "__main__":
 
                 # Save model
                 model.save(path + "model")
+                train_env.save(path + "vecnormalize.pkl")
                 make_plot(path=path)
 
                 train_env.close()
