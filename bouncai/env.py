@@ -187,8 +187,8 @@ class BouncAIEnv(gym.Env):
         platforms = self.world.platform_group.sprites()
         
         # Sort platforms by distance to player to ensure consistency
-        # (The nearest platform should always be at index 0 in the input vector)
-        platforms.sort(key=lambda p: abs(p.rect.y - player_rect.y))
+        platforms = [p for p in platforms if p.rect.y <= player_rect.y]
+        platforms.sort(key=lambda p: player_rect.y - p.rect.y)
         
         for i in range(self.max_platforms):
             if i < len(platforms):
@@ -248,7 +248,7 @@ class BouncAIEnv(gym.Env):
             if prev_vel_y > 0 and curr_vel_y < 0:
                 reward += self.params["bounce"]
             
-            if self.world.score < self.params["survival_start"]:
+            if self.world.score > self.params["survival_start"]:
                 reward += self.params["survival"]
 
             return reward

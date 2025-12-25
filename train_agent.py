@@ -58,7 +58,7 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 # Number of parallel environments
-NUM_ENVS = 1
+NUM_ENVS = 16
 
 def make_env(rank, params):
     """Factory function to create environment instances for SubprocVecEnv."""
@@ -78,11 +78,11 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 if __name__ == "__main__":
-    for death in [10, 50, 100]:
-        for survival in [0, 0.01, 0.1]:
+    for death in [200]:
+        for survival in [1]:
             survival_start = 5000
 
-            for bounce in [1, 10, 100]:
+            for bounce in [0]:
                 path = f"models/death{death}_survival{survival}_bounce{bounce}/"
                 os.makedirs(path, exist_ok=True)
 
@@ -108,7 +108,7 @@ if __name__ == "__main__":
                 # of two layers of size 32 each with Relu activation function
                 # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
                 policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                                    net_arch=dict(pi=[size, size], vf=[size, size]))
+                                    net_arch=dict(pi=[size, size, size], vf=[size, size, size]))
 
                 # Create or load model
                 try:
@@ -121,18 +121,18 @@ if __name__ == "__main__":
                         train_env,
                         policy_kwargs=policy_kwargs,
                         verbose=1,
-                        ent_coef = 0.005,
+                        ent_coef = 0.01,
                         learning_rate=3e-4,
-                        n_steps=8192,
+                        n_steps=256,
                         batch_size=64,
                         n_epochs=10
                     )
 
                 # Train with rendering callback
-                render_callback = RenderCallback(render_env, render_freq=5000000)
+                #render_callback = RenderCallback(render_env, render_freq=5000000)
 
                 try:
-                    model.learn(total_timesteps=1000, callback=render_callback, progress_bar=True)
+                    model.learn(total_timesteps=10000000, progress_bar=True)
                 except KeyboardInterrupt:
                     print("\nTraining interrupted by user")
                 except Exception as e:
