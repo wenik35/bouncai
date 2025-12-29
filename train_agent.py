@@ -77,11 +77,11 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 if __name__ == "__main__":
-    for death in [100]:
-        for survival in [1]:
+    for death in [10, 100]:
+        for survival in [1, 10]:
             survival_start = 0
 
-            for bounce in [10]:
+            for bounce in [10, 100]:
                 path = f"models/death{death}_survival{survival}_bounce{bounce}/"
                 os.makedirs(path, exist_ok=True)
 
@@ -128,10 +128,10 @@ if __name__ == "__main__":
                     )
 
                 # Train with rendering callback
-                render_callback = RenderCallback(render_env, render_freq=50000)
+                #render_callback = RenderCallback(render_env, render_freq=50000)
 
                 try:
-                    model.learn(total_timesteps=10000000, progress_bar=True)
+                    model.learn(total_timesteps=50000000, progress_bar=True)
                 except KeyboardInterrupt:
                     print("\nTraining interrupted by user")
                 except Exception as e:
