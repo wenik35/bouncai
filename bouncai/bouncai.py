@@ -188,6 +188,13 @@ def run():
             elif config["CONTROLLER"] == "ai":
                 # Automatically reset the world and player for AI runs so the
                 # agent immediately restarts after dying.
+                # notify controller about episode end (allow saving/debugging)
+                try:
+                    if hasattr(controller, 'on_episode_end'):
+                        controller.on_episode_end(world.score)
+                except Exception as e:
+                    print(f"[WARN] controller.on_episode_end failed: {e}")
+
                 if world.score > high_score:
                     high_score = world.score
                     with open('score.txt', 'w') as file:

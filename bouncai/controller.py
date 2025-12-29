@@ -6,6 +6,9 @@ import pygame
 import random
 import numpy as np
 import os
+import sys
+import time
+from datetime import datetime
 
 # Define valid actions
 class Actions(Enum):
@@ -41,6 +44,11 @@ class AIController:
         self.obs = collections.deque(maxlen=144)
         self.obs.append(np.zeros((144,), dtype=np.float32))
 
+        # Frame capture buffer (store RGB numpy arrays)
+        self.frames = []
+        self.save_threshold = 100000  # score threshold to decide save/discard
+        self.fps = 60
+
         # Try to load a Stable-Baselines3 model if available
         try:
             from stable_baselines3 import PPO  # noqa: F401
@@ -64,7 +72,18 @@ class AIController:
         Args:
             state (dict): game state as provided by the main loop
         """
-        # If no model, return random action
+        # Capture current screen to memory (RGB numpy array)
+        try:
+            surf = pygame.display.get_surface()
+            if surf is not None:
+                arr = pygame.surfarray.array3d(surf)
+                # surfarray returns (width, height, 3) — transpose to (height, width, 3)
+                arr = np.transpose(arr, (1, 0, 2)).astype(np.uint8)
+                self.frames.append(arr.copy())
+        except Exception:
+            # If display not available yet, skip capture
+            pass
+
         if self.model is None:
             return random.choice(list(Actions))
 
@@ -92,6 +111,80 @@ class AIController:
             return Actions.RIGHT
         else:
             return None
+
+    def on_episode_end(self, score: int):
+        """Handle end of an episode.
+
+        - If the score is below `save_threshold`: discard captured frames and
+            return so the next run starts automatically.
+        - If the score is >= `save_threshold`: write captured frames to a
+            video file in the model path and post a QUIT event to end the
+            simulation (so the user can inspect the high-scoring run).
+        """
+        # If no frames captured, nothing to do
+        if not self.frames:
+            return
+
+        # If the run is below threshold, discard frames and continue
+        if score < self.save_threshold:
+            self.frames = []
+            return
+
+        # Otherwise save frames as a video (high-scoring run)
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        base = self.model_path
+        out_dir = os.path.dirname(base) or base or 'models'
+        os.makedirs(out_dir, exist_ok=True)
+        out_file = os.path.join(out_dir, f'run_success_{timestamp}.mp4')
+
+        saved = False
+        # Try OpenCV first
+        try:
+            import cv2
+            h, w, _ = self.frames[0].shape
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            writer = cv2.VideoWriter(out_file, fourcc, float(self.fps), (w, h))
+            for f in self.frames:
+                # frames are in RGB; convert to BGR
+                try:
+                    bgr = cv2.cvtColor(f, cv2.COLOR_RGB2BGR)
+                except Exception:
+                    bgr = f[:, :, ::-1]
+                writer.write(bgr)
+            writer.release()
+            saved = True
+        except Exception:
+            # Fallback to imageio if cv2 not available
+            try:
+                import imageio
+                imageio.mimwrite(out_file, self.frames, fps=self.fps)
+                saved = True
+            except Exception:
+                saved = False
+
+        if saved:
+            print(f"[AIController] Saved high-run video to '{out_file}' (score={score})")
+            # Post QUIT so the simulation ends for inspection
+            try:
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            except Exception:
+                pass
+        else:
+            print(f"[AIController] Failed to save video for high run; saving frames as PNGs in '{out_dir}'")
+            try:
+                from PIL import Image
+                for i, f in enumerate(self.frames):
+                    Image.fromarray(f).save(os.path.join(out_dir, f'frame_{i:06d}.png'))
+                # still request quit so user can inspect
+                try:
+                    pygame.event.post(pygame.event.Event(pygame.QUIT))
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"[AIController] Failed fallback PNG save: {e}")
+                # Clearing frames and continue (avoid stalling)
+        # Clear frames buffer
+        self.frames = []
 
 class GymController:
     """Controller that uses a Gymnasium-trained model."""
