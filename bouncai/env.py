@@ -9,11 +9,8 @@ import random
 from bouncai.world.world import World
 from bouncai.world.config import config, initialize_fonts
 from bouncai.world.player import Player
-from bouncai.world.platform import Platform
 from bouncai.world.spritesheet import SpriteSheet
-from bouncai.world.enemy import Enemy
 from bouncai.controller import Actions
-import os
 from pygame import mixer
 
 
@@ -233,13 +230,15 @@ class BouncAIEnv(gym.Env):
             return - self.params["death"]
         else:
             score_delta = self.world.score - prev_score
-            reward = score_delta / 100.0
+            #reward = score_delta / 100.0
+            reward = 0.0
 
-            # small reward for bouncing upwards
+            # reward for bouncing
             curr_vel_y = float(self.player.vel_y)
             if prev_vel_y > 0 and curr_vel_y < 0:
                 reward += self.params["bounce"]
             
+            # reward for survival
             if self.world.score > self.params["survival_start"]:
                 reward += self.params["survival"]
 

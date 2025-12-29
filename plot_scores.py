@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def make_plot(path="models\\death200_survival1_bounce0\\"):
+def make_plot(path="models\\death-100_survival0_bounce10\\"):
     # Read the scores from file
     scores = []
     try:
@@ -34,14 +34,14 @@ def make_plot(path="models\\death200_survival1_bounce0\\"):
     fig, ax = plt.subplots(figsize=(14, 6))
 
     # Plot the scores line
-    ax.plot(scores, linewidth=1.5, alpha=0.8, color='steelblue')
+    ax.scatter(range(len(scores)), scores, linewidth=0.5, s=2, alpha=0.8, color='steelblue')
 
     # Add a rolling average (window of 10 episodes)
     if len(scores) >= 10:
         window = 10
         rolling_avg = np.convolve(scores, np.ones(window)/window, mode='valid')
-        ax.plot(range(window-1, len(scores)), rolling_avg, linewidth=2, 
-                alpha=0.7, color='red', label=f'Rolling avg (window={window})')
+        ax.scatter(range(window-1, len(scores)), rolling_avg, linewidth=0.5, 
+                alpha=0.7, color='red', s=5, label=f'Rolling avg (window={window})')
 
     # Labels and formatting
     ax.set_xlabel('Episode Number', fontsize=12)
@@ -59,7 +59,7 @@ def make_plot(path="models\\death200_survival1_bounce0\\"):
     plt.tight_layout()
     plt.savefig(path + "scores_plot.png", dpi=150, bbox_inches='tight')
     print(f"Plot saved to scores_plot.png")
-    #plt.show()
+    plt.show()
 
 if __name__ == "__main__":
     make_plot()
