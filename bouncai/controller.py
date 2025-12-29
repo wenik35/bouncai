@@ -33,7 +33,7 @@ class AIController:
     will use it (deterministic by default). If the model or the
     package is not available it falls back to random actions.
     """
-    def __init__(self, model_path: str = "models/weird/model", deterministic: bool = True):
+    def __init__(self, model_path: str = "models/death100_survival0_bounce10/model", deterministic: bool = True):
         self.model = None
         self.deterministic = deterministic
         self.model_path = model_path
@@ -69,7 +69,7 @@ class AIController:
             return random.choice(list(Actions))
 
         # Convert state dict to observation array
-        self.obs.extendleft(state_to_obs(state)) 
+        self.obs.extend(state_to_obs(state)) 
 
         try:
             action, _ = self.model.predict(self.obs, deterministic=self.deterministic)

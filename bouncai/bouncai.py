@@ -163,7 +163,8 @@ def run():
                     world.game_over = True
                     death_fx.play()
         else:
-            # game over screen only in manual mode, otherwise return from run() with score
+            # game over screen only in manual mode. For AI controller, auto-restart
+            # by resetting the world and player so the agent can continue training/runs.
             if config["CONTROLLER"] == "manual":
                 if world.fade_counter < config["SCREEN_WIDTH"]:
                     world.fade_counter += 5
@@ -184,6 +185,15 @@ def run():
                         # reset
                         world = World(background_image, platform_image, bird_sheet, wind_image)
                         player = Player(world, config["SCREEN_WIDTH"] // 2, config["SCREEN_HEIGHT"] - 150, player_image, jump_fx)
+            elif config["CONTROLLER"] == "ai":
+                # Automatically reset the world and player for AI runs so the
+                # agent immediately restarts after dying.
+                if world.score > high_score:
+                    high_score = world.score
+                    with open('score.txt', 'w') as file:
+                        file.write(str(high_score))
+                world = World(background_image, platform_image, bird_sheet, wind_image)
+                player = Player(world, config["SCREEN_WIDTH"] // 2, config["SCREEN_HEIGHT"] - 150, player_image, jump_fx)
             else:
                 run = False
 
