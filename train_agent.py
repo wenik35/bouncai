@@ -92,7 +92,7 @@ if __name__ == "__main__":
                         "survival": survival,
                         "survival_start": survival_start,
                         "bounce": bounce,
-                        "score": [True, False],
+                        "score": score,
                         "save_path": path
                     }
 

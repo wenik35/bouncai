@@ -31,7 +31,6 @@ class BouncAIEnv(gym.Env):
         self.render_mode = render_mode
         self.asset_path = asset_path
         self.params = params
-        self.logs = []
         
         # Initialize pygame if not already done
         if not pygame.get_init():
@@ -288,18 +287,11 @@ class BouncAIEnv(gym.Env):
             "steps": self.steps,
         }
 
-        self.logs.append(f"Step: {self.steps}, Action: {action}, Reward: {reward:.2f}, Score: {self.world.score}, Obs: {observation}\n")
-
         # If the episode terminated because the agent died, log the final score
         if terminated:
             try:
                 with open(self.params["save_path"] + "scores_log.txt", "a+", encoding="utf-8") as f:
                     f.write(f"{self.world.score}\n")
-
-                if self.world.score > 10000:
-                    with open(self.params["save_path"] + "full_log.txt", "a+", encoding="utf-8") as f:
-                        f.writelines(self.logs)
-                        f.write("\n\n")
             except Exception as e:
                 # Don't let logging errors crash the environment
                 print(f"[WARN] Failed to write score log: {e}")
