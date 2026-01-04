@@ -77,73 +77,76 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 if __name__ == "__main__":
-    for death in [-100]:
+    for death in [100]:
         for survival in [0]:
             survival_start = 0
 
-            for bounce in [0]:
-                path = f"models/death{death}_survival{survival}_bounce{bounce}/"
-                os.makedirs(path, exist_ok=True)
+            for bounce in [10]:
+                for score in [0, 1]:
+                    
+                    path = f"models/death{death}_survival{survival}_bounce{bounce}_score{score}/"
+                    os.makedirs(path, exist_ok=True)
 
-                params = {
-                    "death": death,
-                    "survival": survival,
-                    "survival_start": survival_start,
-                    "bounce": bounce,
-                    "save_path": path
-                }
+                    params = {
+                        "death": death,
+                        "survival": survival,
+                        "survival_start": survival_start,
+                        "bounce": bounce,
+                        "score": [True, False],
+                        "save_path": path
+                    }
 
-                # Create parallel training environments
-                print(f"Creating {NUM_ENVS} parallel training environments...")
-                train_env = SubprocVecEnv([make_env(i, params) for i in range(NUM_ENVS)])
-                train_env = VecNormalize(VecFrameStack(train_env, n_stack=4), norm_obs=True, norm_reward=True, clip_obs=10.)
+                    # Create parallel training environments
+                    print(f"Creating {NUM_ENVS} parallel training environments...")
+                    train_env = SubprocVecEnv([make_env(i, params) for i in range(NUM_ENVS)])
+                    train_env = VecNormalize(VecFrameStack(train_env, n_stack=4), norm_obs=True, norm_reward=True, clip_obs=10.)
 
-                # Create render environment for visualization
-                print("Creating render environment...")
-                render_env = BouncAIEnv(render_mode="human")
+                    # Create render environment for visualization
+                    print("Creating render environment...")
+                    render_env = BouncAIEnv(render_mode="human")
 
-                size = 256
-                # Custom actor (pi) and value function (vf) networks
-                # of two layers of size 32 each with Relu activation function
-                # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
-                policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                                    net_arch=dict(pi=[size, size], vf=[size, size]))
+                    size = 256
+                    # Custom actor (pi) and value function (vf) networks
+                    # of two layers of size 32 each with Relu activation function
+                    # Note: an extra linear layer will be added on top of the pi and the vf nets, respectively
+                    policy_kwargs = dict(activation_fn=th.nn.ReLU,
+                                        net_arch=dict(pi=[size, size], vf=[size, size]))
 
-                # Create or load model
-                try:
-                    model = PPO.load("bouncai_model", env=train_env)
-                    print("Loaded existing model")
-                except:
-                    print("Creating new model")
-                    model = PPO(
-                        "MlpPolicy",
-                        train_env,
-                        policy_kwargs=policy_kwargs,
-                        verbose=1,
-                        ent_coef = 0.01,
-                        learning_rate=1e-4,
-                        n_steps=1024,
-                        batch_size=1024,
-                        n_epochs=10
-                    )
+                    # Create or load model
+                    try:
+                        model = PPO.load("bouncai_model", env=train_env)
+                        print("Loaded existing model")
+                    except:
+                        print("Creating new model")
+                        model = PPO(
+                            "MlpPolicy",
+                            train_env,
+                            policy_kwargs=policy_kwargs,
+                            verbose=1,
+                            ent_coef = 0.01,
+                            learning_rate=1e-4,
+                            n_steps=1024,
+                            batch_size=1024,
+                            n_epochs=10
+                        )
 
-                # Train with rendering callback
-                #render_callback = RenderCallback(render_env, render_freq=50000)
+                    # Train with rendering callback
+                    #render_callback = RenderCallback(render_env, render_freq=50000)
 
-                try:
-                    model.learn(total_timesteps=50000000, progress_bar=True)
-                except KeyboardInterrupt:
-                    print("\nTraining interrupted by user")
-                except Exception as e:
-                    print(f"\n[ERROR] Training failed: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    try:
+                        model.learn(total_timesteps=50000000, progress_bar=True)
+                    except KeyboardInterrupt:
+                        print("\nTraining interrupted by user")
+                    except Exception as e:
+                        print(f"\n[ERROR] Training failed: {e}")
+                        import traceback
+                        traceback.print_exc()
 
-                # Save model
-                model.save(path + "model")
-                train_env.save(path + "vecnormalize.pkl")
-                make_plot(path=path)
+                    # Save model
+                    model.save(path + "model")
+                    train_env.save(path + "vecnormalize.pkl")
+                    make_plot(path=path)
 
-                train_env.close()
-                render_env.close()
-                pygame.quit()
+                    train_env.close()
+                    render_env.close()
+                    pygame.quit()

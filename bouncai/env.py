@@ -228,8 +228,7 @@ class BouncAIEnv(gym.Env):
             return - self.params["death"]
         else:
             score_delta = self.world.score - prev_score
-            #reward = score_delta / 100.0
-            reward = 0.0
+            reward = score_delta / 100.0 * self.params["score"]
 
             # reward for bouncing
             curr_vel_y = float(self.player.vel_y)
