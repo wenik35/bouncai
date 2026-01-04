@@ -4,7 +4,6 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 import pygame
-import random
 
 from bouncai.world.world import World
 from bouncai.world.config import config, initialize_fonts
@@ -12,8 +11,6 @@ from bouncai.world.player import Player
 from bouncai.world.spritesheet import SpriteSheet
 from bouncai.controller import Actions
 from pygame import mixer
-
-
 
 class BouncAIEnv(gym.Env):
     """Custom Gymnasium environment for BouncAI game."""
@@ -34,6 +31,7 @@ class BouncAIEnv(gym.Env):
         self.render_mode = render_mode
         self.asset_path = asset_path
         self.params = params
+        self.logs = []
         
         # Initialize pygame if not already done
         if not pygame.get_init():
@@ -291,18 +289,22 @@ class BouncAIEnv(gym.Env):
             "steps": self.steps,
         }
 
+        self.logs.append(f"Step: {self.steps}, Action: {action}, Reward: {reward:.2f}, Score: {self.world.score}, Obs: {observation}\n")
+
         # If the episode terminated because the agent died, log the final score
         if terminated:
             try:
-                from datetime import datetime
-                #log_line = f"{datetime.utcnow().isoformat()}Z, score={self.world.score}, steps={self.steps}\n"
-                log_line = f"{self.world.score}\n"
                 with open(self.params["save_path"] + "scores_log.txt", "a+", encoding="utf-8") as f:
-                    f.write(log_line)
+                    f.write(f"{self.world.score}\n")
+
+                if self.world.score > 10000:
+                    with open(self.params["save_path"] + "full_log.txt", "a+", encoding="utf-8") as f:
+                        f.writelines(self.logs)
+                        f.write("\n\n")
             except Exception as e:
                 # Don't let logging errors crash the environment
                 print(f"[WARN] Failed to write score log: {e}")
-
+        
         return observation, reward, terminated, truncated, info
     
     def reset(self, seed=None, options=None):

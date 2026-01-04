@@ -81,7 +81,7 @@ if __name__ == "__main__":
         for survival in [0]:
             survival_start = 0
 
-            for bounce in [10, 100]:
+            for bounce in [0]:
                 path = f"models/death{death}_survival{survival}_bounce{bounce}/"
                 os.makedirs(path, exist_ok=True)
 
