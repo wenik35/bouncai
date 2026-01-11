@@ -68,7 +68,9 @@ class BouncAIEnv(gym.Env):
         #                     nearest_wind_x, nearest_wind_y]
         # = 2 + 30 + 2 + 2 = 36 values
         self.max_platforms = config.get("MAX_PLATFORMS", 10)
-        obs_size = 2 + self.max_platforms * 3 + 2 + 2  # 36
+        self.max_wind_areas = config.get("MAX_WIND_AREAS", 5)
+        self.max_enemies = config.get("MAX_ENEMIES", 5)
+        obs_size = 2 + self.max_platforms * 3 + 2 * self.max_enemies + 2 * self.max_wind_areas  # 36
 
         self.observation_space = spaces.Box(
             low=-np.inf, 
@@ -198,24 +200,27 @@ class BouncAIEnv(gym.Env):
 
         # 3. Enemy State (Relative & Normalized)
         enemies = self.world.enemy_group.sprites()
-        if enemies:
-            # Find nearest enemy
-            nearest_enemy = min(enemies, key=lambda e: (e.rect.x - player_rect.x)**2 + (e.rect.y - player_rect.y)**2)
-            obs_list.append((nearest_enemy.rect.x - player_rect.x) / self.screen_width)
-            obs_list.append((nearest_enemy.rect.y - player_rect.y) / self.screen_height)
-        else:
-            obs_list.append(0.0)
-            obs_list.append(1.0) # Far away
+                
+        for i in range(self.max_enemies):
+            if i < len(enemies):
+                e = enemies[i]
+                obs_list.append((e.rect.x - player_rect.x) / self.screen_width)
+                obs_list.append((e.rect.y - player_rect.y) / self.screen_height)
+            else:
+                obs_list.append(0.0)
+                obs_list.append(1.0)
 
         # 4. Wind State (Relative & Normalized)
         winds = self.world.wind_group.sprites()
-        if winds:
-            nearest_wind = min(winds, key=lambda w: (w.rect.x - player_rect.x)**2 + (w.rect.y - player_rect.y)**2)
-            obs_list.append((nearest_wind.rect.x - player_rect.x) / self.screen_width)
-            obs_list.append((nearest_wind.rect.y - player_rect.y) / self.screen_height)
-        else:
-            obs_list.append(0.0)
-            obs_list.append(1.0)
+
+        for i in range(self.max_wind_areas):
+            if i < len(winds):
+                w = winds[i]
+                obs_list.append((w.rect.x - player_rect.x) / self.screen_width)
+                obs_list.append((w.rect.y - player_rect.y) / self.screen_height)
+            else:
+                obs_list.append(0.0)
+                obs_list.append(1.0)
 
         return np.array(obs_list, dtype=np.float32)
     

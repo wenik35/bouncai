@@ -77,7 +77,7 @@ if not pygame.display.get_init():
         print(f"[ERROR] Failed to initialize pygame: {e}")
 
 if __name__ == "__main__":
-    for death in [100]:
+    for death in [200]:
         for survival in [0]:
             survival_start = 0
 
