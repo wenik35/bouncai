@@ -59,7 +59,7 @@ def make_plot(path="models\\death-100_survival0_bounce10\\"):
     plt.tight_layout()
     plt.savefig(path + "scores_plot.png", dpi=150, bbox_inches='tight')
     print(f"Plot saved to scores_plot.png")
-    plt.show()
+    #plt.show()
 
 if __name__ == "__main__":
     make_plot()

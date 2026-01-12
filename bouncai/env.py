@@ -242,6 +242,14 @@ class BouncAIEnv(gym.Env):
             # reward for survival
             if self.world.score > self.params["survival_start"]:
                 reward += self.params["survival"]
+            
+            # reward for enemy distance
+            if self.params["enemy_distance"] > 0:
+                enemies = self.world.enemy_group.sprites()
+                if enemies:
+                    closest_enemy = min(enemies, key=lambda e: abs(e.rect.y - self.player.rect.y))
+                    distance = abs(closest_enemy.rect.x - self.player.rect.x) / self.screen_width
+                    reward -= (1.0 - distance) * self.params["enemy_distance"]
 
             return reward
     
