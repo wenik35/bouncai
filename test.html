@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoWindow</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background:#111; color:#fff; }
+    button { font-size: 24px; padding: 20px; margin: 10px; width: 80%; }
+    .up { background: #2ecc71; }
+    .down { background: #3498db; }
+    .stop { background: #e74c3c; }
+  </style>
+</head>
+<body>
+  <h1>AutoWindow</h1>
+  <input id="durationInput" type="number" placeholder="Dauer in ms"></input>
+  <button class="up" onclick="move(0)">LINKS</button>
+  <button class="down" onclick="move(1)">RECHTS</button>
+  <button class="stop" onclick="stopMotor()">STOP</button>
+
+<script>
+function move(side) {
+  const duration = document.getElementById('durationInput').value;
+  fetch(`/move?side=${side}&time=${duration}`);
+}
+function stopMotor() {
+  fetch('/stop');
+}
+</script>
+</body>
+</html>
